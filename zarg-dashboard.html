@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=375, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Zarg — The Stack</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080a0f;
+    --bg2: #0d1018;
+    --surface: #12151e;
+    --surface2: #171b26;
+    --gold: #c9973a;
+    --gold-light: #e8b85a;
+    --gold-dim: #7a5a22;
+    --amber: #f0a830;
+    --cream: #f0e8d8;
+    --muted: #4a5068;
+    --text: #d8d0c0;
+    --green: #4a8c6a;
+    --green-light: #6ab88a;
+    --red-dim: #8c3a3a;
+    --blue-dim: #2a4a7a;
+    --blue: #5a8cc0;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+  html, body {
+    width: 375px;
+    min-height: 812px;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    overflow-x: hidden;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* NOISE TEXTURE OVERLAY */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.4;
+  }
+
+  .page {
+    width: 375px;
+    padding: 0 0 60px 0;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    padding: 52px 24px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .header::before {
+    content: '';
+    position: absolute;
+    top: -80px; right: -60px;
+    width: 260px; height: 260px;
+    background: radial-gradient(circle, rgba(201,151,58,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .header-label {
+    font-size: 9px;
+    letter-spacing: 0.3em;
+    color: var(--gold-dim);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+
+  .header-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 13px;
+    font-weight: 300;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    margin-bottom: 2px;
+  }
+
+  .date-line {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    margin-top: 6px;
+  }
+
+  /* ── NORTH STAR ── */
+  .north-star {
+    margin: 0 16px 20px;
+    background: linear-gradient(135deg, #1a1408 0%, #120e04 100%);
+    border: 1px solid var(--gold-dim);
+    border-radius: 16px;
+    padding: 24px 22px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .north-star::before {
+    content: '★';
+    position: absolute;
+    right: 18px; top: 16px;
+    font-size: 11px;
+    color: var(--gold);
+    opacity: 0.6;
+  }
+
+  .north-star::after {
+    content: '';
+    position: absolute;
+    bottom: -40px; right: -40px;
+    width: 120px; height: 120px;
+    background: radial-gradient(circle, rgba(201,151,58,0.08) 0%, transparent 70%);
+  }
+
+  .ns-label {
+    font-size: 8px;
+    letter-spacing: 0.35em;
+    color: var(--gold);
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .ns-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, var(--gold-dim), transparent);
+  }
+
+  .ns-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 21px;
+    font-weight: 300;
+    font-style: italic;
+    color: var(--cream);
+    line-height: 1.45;
+    letter-spacing: 0.01em;
+  }
+
+  .ns-text em {
+    font-style: normal;
+    color: var(--gold-light);
+    font-weight: 400;
+  }
+
+  .ns-sub {
+    margin-top: 14px;
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.15em;
+    line-height: 1.7;
+  }
+
+  /* ── SECTION LABEL ── */
+  .section-label {
+    padding: 0 24px;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .section-label span {
+    font-size: 8px;
+    letter-spacing: 0.35em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--surface2);
+  }
+
+  /* ── PHASES ── */
+  .phases {
+    padding: 0 16px;
+    margin-bottom: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .phase {
+    border-radius: 14px;
+    padding: 18px 18px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+  }
+
+  .phase:active { transform: scale(0.98); }
+
+  .phase-0 {
+    background: linear-gradient(135deg, #0e1508 0%, #0a1005 100%);
+    border: 1px solid #2a4020;
+  }
+
+  .phase-1 {
+    background: linear-gradient(135deg, #080e18 0%, #050c14 100%);
+    border: 1px solid #1a2e48;
+  }
+
+  .phase-2 {
+    background: linear-gradient(135deg, #140e08 0%, #100a05 100%);
+    border: 1px solid #3a2810;
+  }
+
+  .phase-glow-0::after {
+    content: '';
+    position: absolute;
+    top: -20px; right: -20px;
+    width: 80px; height: 80px;
+    background: radial-gradient(circle, rgba(74,140,106,0.15) 0%, transparent 70%);
+  }
+
+  .phase-glow-1::after {
+    content: '';
+    position: absolute;
+    top: -20px; right: -20px;
+    width: 80px; height: 80px;
+    background: radial-gradient(circle, rgba(90,140,192,0.15) 0%, transparent 70%);
+  }
+
+  .phase-glow-2::after {
+    content: '';
+    position: absolute;
+    top: -20px; right: -20px;
+    width: 80px; height: 80px;
+    background: radial-gradient(circle, rgba(201,151,58,0.12) 0%, transparent 70%);
+  }
+
+  .phase-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+
+  .phase-badge {
+    font-size: 7px;
+    letter-spacing: 0.3em;
+    padding: 3px 8px;
+    border-radius: 20px;
+    text-transform: uppercase;
+  }
+
+  .badge-0 { background: rgba(74,140,106,0.15); color: var(--green-light); border: 1px solid rgba(74,140,106,0.3); }
+  .badge-1 { background: rgba(90,140,192,0.15); color: var(--blue); border: 1px solid rgba(90,140,192,0.3); }
+  .badge-2 { background: rgba(201,151,58,0.12); color: var(--gold); border: 1px solid rgba(201,151,58,0.25); }
+
+  .phase-num {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+  }
+
+  .phase-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 20px;
+    font-weight: 400;
+    margin-bottom: 6px;
+    letter-spacing: 0.02em;
+  }
+
+  .phase-0 .phase-title { color: var(--green-light); }
+  .phase-1 .phase-title { color: var(--blue); }
+  .phase-2 .phase-title { color: var(--gold-light); }
+
+  .phase-sub {
+    font-size: 9px;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    margin-bottom: 14px;
+    line-height: 1.6;
+  }
+
+  .phase-items {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+
+  .phase-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 9.5px;
+    color: var(--text);
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+  }
+
+  .phase-dot {
+    width: 4px;
+    height: 4px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+
+  .dot-0 { background: var(--green); }
+  .dot-1 { background: var(--blue); }
+  .dot-2 { background: var(--gold); }
+
+  .phase-outcome {
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(255,255,255,0.05);
+    font-size: 8.5px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    font-style: italic;
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+
+  /* ── WEEKLY RHYTHM ── */
+  .rhythm {
+    padding: 0 16px;
+    margin-bottom: 24px;
+  }
+
+  .week-card {
+    background: var(--surface);
+    border: 1px solid var(--surface2);
+    border-radius: 14px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    transition: transform 0.15s;
+  }
+
+  .week-card:active { transform: scale(0.98); }
+
+  .week-header {
+    padding: 14px 18px 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--surface2);
+  }
+
+  .week-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .week-num {
+    font-size: 22px;
+    font-family: 'Cormorant Garamond', serif;
+    font-weight: 300;
+    color: var(--muted);
+    line-height: 1;
+    width: 28px;
+  }
+
+  .week-info {}
+
+  .week-title {
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    color: var(--cream);
+    margin-bottom: 2px;
+  }
+
+  .week-focus {
+    font-size: 8px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .week-status {
+    font-size: 7px;
+    padding: 3px 8px;
+    border-radius: 20px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  .status-now { background: rgba(201,151,58,0.15); color: var(--gold); border: 1px solid rgba(201,151,58,0.3); }
+  .status-next { background: rgba(74,80,104,0.2); color: var(--muted); border: 1px solid rgba(74,80,104,0.3); }
+  .status-soon { background: rgba(74,80,104,0.1); color: var(--muted); border: 1px solid rgba(74,80,104,0.2); }
+
+  .week-tasks {
+    padding: 12px 18px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .task {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .task-check {
+    width: 14px;
+    height: 14px;
+    border-radius: 4px;
+    border: 1px solid var(--muted);
+    flex-shrink: 0;
+    margin-top: 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .task-check.now { border-color: var(--gold-dim); }
+
+  .task-text {
+    font-size: 10px;
+    color: var(--text);
+    letter-spacing: 0.03em;
+    line-height: 1.5;
+  }
+
+  .task-text.dim { color: var(--muted); }
+
+  /* ── MANTRA ── */
+  .mantra {
+    margin: 8px 16px 24px;
+    padding: 20px 22px;
+    background: var(--surface);
+    border-radius: 14px;
+    border: 1px solid var(--surface2);
+    text-align: center;
+  }
+
+  .mantra-text {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 14px;
+    font-style: italic;
+    color: var(--muted);
+    letter-spacing: 0.08em;
+    line-height: 1.7;
+  }
+
+  .mantra-text strong {
+    color: var(--gold);
+    font-style: normal;
+    font-weight: 400;
+  }
+
+  /* ── PROGRESS SEED ── */
+  .seed-section {
+    margin: 0 16px 24px;
+  }
+
+  .seed-card {
+    background: linear-gradient(135deg, #0e0a14 0%, #080610 100%);
+    border: 1px solid #2a1e3a;
+    border-radius: 14px;
+    padding: 18px 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .seed-card::after {
+    content: '';
+    position: absolute;
+    bottom: -30px; right: -30px;
+    width: 100px; height: 100px;
+    background: radial-gradient(circle, rgba(130,80,200,0.08) 0%, transparent 70%);
+  }
+
+  .seed-label {
+    font-size: 8px;
+    letter-spacing: 0.3em;
+    color: #7a5a9a;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .seed-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(to right, #2a1e3a, transparent);
+  }
+
+  .seed-items {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+  }
+
+  .seed-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .seed-name {
+    font-size: 9.5px;
+    color: var(--text);
+    letter-spacing: 0.06em;
+  }
+
+  .seed-bar-wrap {
+    width: 100px;
+    height: 3px;
+    background: var(--surface2);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .seed-bar {
+    height: 100%;
+    border-radius: 2px;
+    background: linear-gradient(to right, #6a3a9a, #9a6acc);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    padding: 16px 24px 0;
+    text-align: center;
+  }
+
+  .footer-text {
+    font-size: 8px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* ── ANIMATIONS ── */
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .north-star { animation: fadeUp 0.6s ease 0.1s both; }
+  .phase:nth-child(1) { animation: fadeUp 0.6s ease 0.2s both; }
+  .phase:nth-child(2) { animation: fadeUp 0.6s ease 0.3s both; }
+  .phase:nth-child(3) { animation: fadeUp 0.6s ease 0.4s both; }
+  .week-card:nth-child(1) { animation: fadeUp 0.5s ease 0.3s both; }
+  .week-card:nth-child(2) { animation: fadeUp 0.5s ease 0.38s both; }
+  .week-card:nth-child(3) { animation: fadeUp 0.5s ease 0.46s both; }
+  .week-card:nth-child(4) { animation: fadeUp 0.5s ease 0.54s both; }
+  .week-card:nth-child(5) { animation: fadeUp 0.5s ease 0.62s both; }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 0.6; }
+    50% { opacity: 1; }
+  }
+
+  .status-now { animation: pulse 2.5s ease infinite; }
+
+  /* Subtle shimmer on north star border */
+  @keyframes borderShimmer {
+    0% { border-color: var(--gold-dim); }
+    50% { border-color: var(--gold); }
+    100% { border-color: var(--gold-dim); }
+  }
+  .north-star { animation: fadeUp 0.6s ease 0.1s both, borderShimmer 4s ease infinite 0.7s; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-label">The Stack</div>
+    <div class="header-name">Zarg — Tamil Nadu</div>
+    <div class="date-line">Read this. Then go do something.</div>
+  </div>
+
+  <!-- NORTH STAR -->
+  <div class="north-star">
+    <div class="ns-label">North Star</div>
+    <div class="ns-text">Make survival <em>free</em>, so humans can finally choose <em>who they are.</em></div>
+    <div class="ns-sub">When you lose the thread — come back here.<br>Everything below serves this one line.</div>
+  </div>
+
+  <!-- PHASES -->
+  <div class="section-label"><span>The Phases</span></div>
+
+  <div class="phases">
+
+    <!-- PHASE 0 -->
+    <div class="phase phase-0 phase-glow-0">
+      <div class="phase-top">
+        <div class="phase-badge badge-0">Active · Phase 0</div>
+        <div class="phase-num">00</div>
+      </div>
+      <div class="phase-title">The Root</div>
+      <div class="phase-sub">Automate the salt field. Fund everything.</div>
+      <div class="phase-items">
+        <div class="phase-item"><div class="phase-dot dot-0"></div><span>Mud conveyor — UHMWPE bucket lining, vibration-assist release</span></div>
+        <div class="phase-item"><div class="phase-dot dot-0"></div><span>Salt harvester — floating pontoon scraper, 6–8 ton/hr</span></div>
+        <div class="phase-item"><div class="phase-dot dot-0"></div><span>Fresnel lens array — accelerate evaporation, eliminate intermediate ponds</span></div>
+        <div class="phase-item"><div class="phase-dot dot-0"></div><span>Your cut: 21% of new profit → fuels everything next</span></div>
+      </div>
+      <div class="phase-outcome">The seed that grows the forest.</div>
+    </div>
+
+    <!-- PHASE 1 -->
+    <div class="phase phase-1 phase-glow-1">
+      <div class="phase-top">
+        <div class="phase-badge badge-1">Next · Phase 1</div>
+        <div class="phase-num">01</div>
+      </div>
+      <div class="phase-title">Food + Transport</div>
+      <div class="phase-sub">Break the city's monopoly on survival.</div>
+      <div class="phase-items">
+        <div class="phase-item"><div class="phase-dot dot-1"></div><span>Vertical farm — fiber optic light pipes + diffuser lenses, roof-scale</span></div>
+        <div class="phase-item"><div class="phase-dot dot-1"></div><span>Tamil Nadu cuisine crop map — 20 ingredients, shortest cycles first</span></div>
+        <div class="phase-item"><div class="phase-dot dot-1"></div><span>Winged VTOL — folding wings, AI virtual tube, no roads needed</span></div>
+        <div class="phase-item"><div class="phase-dot dot-1"></div><span>Pathways return to humans — water, trees, children, life</span></div>
+      </div>
+      <div class="phase-outcome">People scatter back to places that matter to them.</div>
+    </div>
+
+    <!-- PHASE 2 -->
+    <div class="phase phase-2 phase-glow-2">
+      <div class="phase-top">
+        <div class="phase-badge badge-2">Later · Phase 2+</div>
+        <div class="phase-num">02</div>
+      </div>
+      <div class="phase-title">The Full Stack</div>
+      <div class="phase-sub">Shelter · Energy · Health · Materials · Communication</div>
+      <div class="phase-items">
+        <div class="phase-item"><div class="phase-dot dot-2"></div><span>3D printed earth homes — materials AI reads local soil, outputs mix</span></div>
+        <div class="phase-item"><div class="phase-dot dot-2"></div><span>Polymer PV + airborne turbines + gravity batteries + condensation harvest</span></div>
+        <div class="phase-item"><div class="phase-dot dot-2"></div><span>Biomaterials AI — grow + combine plants → replace all mined materials</span></div>
+        <div class="phase-item"><div class="phase-dot dot-2"></div><span>Ayurvedic health database + MedPod for trauma</span></div>
+        <div class="phase-item"><div class="phase-dot dot-2"></div><span>Mesh communication — every home is a node</span></div>
+      </div>
+      <div class="phase-outcome">A personal civilization stack. Owned by one person.</div>
+    </div>
+
+  </div>
+
+  <!-- WEEKLY RHYTHM -->
+  <div class="section-label"><span>Weekly Rhythm</span></div>
+
+  <div class="rhythm">
+
+    <div class="week-card">
+      <div class="week-header">
+        <div class="week-left">
+          <div class="week-num">01</div>
+          <div class="week-info">
+            <div class="week-title">Foundation</div>
+            <div class="week-focus">Body · Habit · Family</div>
+          </div>
+        </div>
+        <div class="week-status status-now">Now</div>
+      </div>
+      <div class="week-tasks">
+        <div class="task"><div class="task-check now"></div><div class="task-text">Sleep on time, every night</div></div>
+        <div class="task"><div class="task-check now"></div><div class="task-text">Eat well. No exceptions.</div></div>
+        <div class="task"><div class="task-check now"></div><div class="task-text">Office every day, on time</div></div>
+        <div class="task"><div class="task-check now"></div><div class="task-text">Salt field — calls + site visits</div></div>
+        <div class="task"><div class="task-check now"></div><div class="task-text">Write pending list for mom + sister → purchase next week</div></div>
+        <div class="task"><div class="task-check now"></div><div class="task-text">Start a weekly journal — one honest entry</div></div>
+      </div>
+    </div>
+
+    <div class="week-card">
+      <div class="week-header">
+        <div class="week-left">
+          <div class="week-num">02</div>
+          <div class="week-info">
+            <div class="week-title">First Design</div>
+            <div class="week-focus">Salt Harvester Sketch</div>
+          </div>
+        </div>
+        <div class="week-status status-next">Next</div>
+      </div>
+      <div class="week-tasks">
+        <div class="task"><div class="task-check"></div><div class="task-text task-dim">Office is habit now. Don't think about it.</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Purchase mom + sister items</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Design salt harvester on paper — dimensions, mechanism, rough materials</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">One sketch. One page of notes. Done.</div></div>
+      </div>
+    </div>
+
+    <div class="week-card">
+      <div class="week-header">
+        <div class="week-left">
+          <div class="week-num">03</div>
+          <div class="week-info">
+            <div class="week-title">Materials Audit</div>
+            <div class="week-focus">Know what you need</div>
+          </div>
+        </div>
+        <div class="week-status status-soon">Soon</div>
+      </div>
+      <div class="week-tasks">
+        <div class="task"><div class="task-check"></div><div class="task-text">List every material the harvester needs</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">List every skill needed — welding, fabrication, electrical</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">What you have · what to hire · what to learn</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Begin learning the first skill</div></div>
+      </div>
+    </div>
+
+    <div class="week-card">
+      <div class="week-header">
+        <div class="week-left">
+          <div class="week-num">04</div>
+          <div class="week-info">
+            <div class="week-title">Build · Week 1</div>
+            <div class="week-focus">Tracks + Collection</div>
+          </div>
+        </div>
+        <div class="week-status status-soon">Soon</div>
+      </div>
+      <div class="week-tasks">
+        <div class="task"><div class="task-check"></div><div class="task-text">Build continuous tracks subsystem</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Build collection system</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Test each in field — failure is data, not defeat</div></div>
+      </div>
+    </div>
+
+    <div class="week-card">
+      <div class="week-header">
+        <div class="week-left">
+          <div class="week-num">05</div>
+          <div class="week-info">
+            <div class="week-title">Build · Week 2</div>
+            <div class="week-focus">Conveyor + Full Test</div>
+          </div>
+        </div>
+        <div class="week-status status-soon">Soon</div>
+      </div>
+      <div class="week-tasks">
+        <div class="task"><div class="task-check"></div><div class="task-text">Build conveyor belt</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Integrate all subsystems</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Full field test — document everything</div></div>
+        <div class="task"><div class="task-check"></div><div class="task-text">Journal entry — what worked, what didn't, what changed</div></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- REMEMBER THIS -->
+  <div class="section-label"><span>Remember</span></div>
+
+  <div class="seed-section">
+    <div class="seed-card">
+      <div class="seed-label">Progress seeds</div>
+      <div class="seed-items">
+        <div class="seed-item">
+          <div class="seed-name">Condensation surface on turbine</div>
+          <div class="seed-bar-wrap"><div class="seed-bar" style="width:15%"></div></div>
+        </div>
+        <div class="seed-item">
+          <div class="seed-name">Materials AI — 3 layer system</div>
+          <div class="seed-bar-wrap"><div class="seed-bar" style="width:10%"></div>
+          </div>
+        </div>
+        <div class="seed-item">
+          <div class="seed-name">Gravity battery tower design</div>
+          <div class="seed-bar-wrap"><div class="seed-bar" style="width:8%"></div></div>
+        </div>
+        <div class="seed-item">
+          <div class="seed-name">Tamil Nadu — prove it first</div>
+          <div class="seed-bar-wrap"><div class="seed-bar" style="width:20%"></div></div>
+        </div>
+        <div class="seed-item">
+          <div class="seed-name">Salt business → 21% → fuel</div>
+          <div class="seed-bar-wrap"><div class="seed-bar" style="width:25%"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MANTRA -->
+  <div class="mantra">
+    <div class="mantra-text">
+      Motivation is weather.<br>
+      <strong>Identity is the engine.</strong><br>
+      Build the identity first.
+    </div>
+  </div>
+
+  <div class="footer">
+    <div class="footer-text">grow it · print it · free it</div>
+  </div>
+
+</div>
+</body>
+</html>
